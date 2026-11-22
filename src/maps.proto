@@ -1,0 +1,66 @@
+syntax = "proto3";
+package maps;
+
+enum MapCharacteristic {
+   Custom = 0;
+   Standard = 1;
+   OneSaber = 2;
+   NoArrows = 3;
+   NinetyDegree = 4;
+   ThreeSixtyDegree = 5;
+   Lightshow = 6;
+   Lawless = 7;
+}
+enum MapDifficulty {
+   Easy = 0;
+   Normal = 1;
+   Hard = 2;
+   Expert = 3;
+   ExpertPlus = 4;
+}
+enum MapMods {
+   // this is a composite/flags enumeration
+   ZERO = 0; // proto3 requires a zero value as the first item (it can be named anything)
+   NoodleExtensions = 1;
+   MappingExtensions = 2;
+   Chroma = 4;
+   Cinema = 8;
+}
+enum RankedStatus {
+   Unranked = 0;
+   Ranked = 1;
+   Qualified = 2;
+   Queued = 3;
+}
+message SongDifficultyProto {
+   MapCharacteristic characteristic = 1;
+   MapDifficulty difficulty = 2;
+   uint32 starsT100 = 4;
+   uint32 njsT100 = 6;
+   uint32 bombs = 7;
+   uint32 notes = 8;
+   uint32 obstacles = 9;
+   MapMods mods = 10;
+}
+message SongProto {
+   float bpm = 1;
+   uint32 downloadCount = 2;
+   uint32 upvotes = 3;
+   uint32 downvotes = 4;
+   uint32 uploadTimeUnix = 5;
+   uint32 mapId = 6;
+   uint32 songDurationSeconds = 8;
+   bytes hashBytes = 9;
+   string songName = 10;
+   string songAuthorName = 11;
+   string levelAuthorName = 12;
+   repeated SongDifficultyProto difficulties = 13;
+   uint32 rankedChangeUnix = 14;
+   RankedStatus rankedState = 15;
+   string uploaderName = 16;
+}
+message SongProtoContainer {
+   uint32 formatVersion = 1;
+   uint32 scrapeEndedTimeUnix = 2;
+   repeated SongProto songs = 4;
+}
