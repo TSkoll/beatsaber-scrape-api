@@ -23,7 +23,17 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/hashes", get(list_hashes))
         .route("/api/v1/keys", get(list_keys))
         .route("/api/v1/filter", post(filter_songs))
+        .fallback(route_not_found)
+        .method_not_allowed_fallback(method_not_allowed)
         .with_state(state)
+}
+
+async fn route_not_found() -> ApiError {
+    ApiError::NotFound("no route matches this path".to_owned())
+}
+
+async fn method_not_allowed() -> ApiError {
+    ApiError::MethodNotAllowed
 }
 
 async fn song_by_hash(
@@ -36,7 +46,7 @@ async fn song_by_hash(
         .song_by_hash(&hash.to_uppercase())
         .cloned()
         .map(Json)
-        .ok_or(ApiError::NotFound)
+        .ok_or_else(|| ApiError::NotFound("song not found".to_owned()))
 }
 
 async fn song_by_key(
@@ -53,7 +63,7 @@ async fn song_by_key(
         .song_by_key(map_id)
         .cloned()
         .map(Json)
-        .ok_or(ApiError::NotFound)
+        .ok_or_else(|| ApiError::NotFound("song not found".to_owned()))
 }
 
 async fn list_hashes(State(state): State<AppState>) -> Json<Vec<String>> {
@@ -80,8 +90,9 @@ async fn filter_songs(
 
 #[derive(Debug)]
 enum ApiError {
-    NotFound,
+    NotFound(String),
     BadRequest(String),
+    MethodNotAllowed,
 }
 
 #[derive(Serialize)]
@@ -92,10 +103,66 @@ struct ErrorResponse {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, message) = match self {
-            Self::NotFound => (StatusCode::NOT_FOUND, "song not found".to_owned()),
+            Self::NotFound(message) => (StatusCode::NOT_FOUND, message),
             Self::BadRequest(message) => (StatusCode::BAD_REQUEST, message),
+            Self::MethodNotAllowed => (
+                StatusCode::METHOD_NOT_ALLOWED,
+                "this route does not support the request method".to_owned(),
+            ),
         };
 
         (status, Json(ErrorResponse { error: message })).into_response()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::body::to_bytes;
+    use axum::http::StatusCode;
+    use axum::response::IntoResponse;
+
+    use super::ApiError;
+
+    async fn assert_error_response(error: ApiError, status: StatusCode, message: &str) {
+        let response = error.into_response();
+        assert_eq!(response.status(), status);
+
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("error body should be readable");
+        let json: serde_json::Value =
+            serde_json::from_slice(&body).expect("error body should be JSON");
+
+        assert_eq!(json, serde_json::json!({ "error": message }));
+    }
+
+    #[tokio::test]
+    async fn not_found_has_json_error_message() {
+        assert_error_response(
+            ApiError::NotFound("song not found".to_owned()),
+            StatusCode::NOT_FOUND,
+            "song not found",
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn bad_request_has_json_error_message() {
+        assert_error_response(
+            ApiError::BadRequest("invalid key".to_owned()),
+            StatusCode::BAD_REQUEST,
+            "invalid key",
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn method_not_allowed_has_json_error_message() {
+        assert_error_response(
+            ApiError::MethodNotAllowed,
+            StatusCode::METHOD_NOT_ALLOWED,
+            "this route does not support the request method",
+        )
+        .await;
     }
 }

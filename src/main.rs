@@ -9,6 +9,11 @@ const BIND_ADDRESS: &str = "0.0.0.0:3000";
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
+    tracing::info!(
+        application = env!("CARGO_PKG_NAME"),
+        version = env!("CARGO_PKG_VERSION"),
+        "starting application"
+    );
 
     let state = AppState::new();
     fetch::spawn_refresh_task(state.clone());
